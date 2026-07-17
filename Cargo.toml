@@ -1,0 +1,33 @@
+[package]
+name = "sp1-to-snarkjs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Convert SP1 Groth16 proof artifacts into snarkjs-compatible JSON artifacts"
+readme = "README.md"
+keywords = ["sp1", "snarkjs", "groth16", "zkvm", "bn254"]
+categories = ["cryptography", "command-line-utilities"]
+exclude = ["artifacts/", "scripts/import-examples.sh"]
+
+[lib]
+name = "sp1_to_snarkjs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sp1-to-snarkjs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+ark-bn254 = "0.5"
+ark-ec = "0.5"
+ark-ff = "0.5"
+ark-groth16 = "0.5"
+ark-snark = "0.5"
+clap = { version = "4.5", features = ["derive"] }
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sp1-sdk = "=6.3.1"
+sp1-verifier = { version = "=6.3.1", features = ["ark"] }
+thiserror = "2.0"

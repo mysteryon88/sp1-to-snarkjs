@@ -1,0 +1,3 @@
+[submodule "sp1-examples"]
+	path = sp1-examples
+	url = https://github.com/zk-examples/sp1-examples.git

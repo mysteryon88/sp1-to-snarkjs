@@ -1,9 +1,9 @@
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
+use sp1_primitives::io::SP1PublicValues;
 use sp1_to_snarkjs::{
     error::Sp1ToSnarkjsError,
-    sp1::{sp1_groth16_proof_bytes, sp1_groth16_public_inputs},
+    sp1::{sp1_groth16_proof_bytes, sp1_groth16_public_inputs, SP1ProofWithPublicValues},
 };
-use sp1_verifier::Groth16Bn254Proof;
+use sp1_verifier::{Groth16Bn254Proof, SP1Proof};
 
 const INPUTS: [&str; 5] = ["1", "2", "3", "4", "5"];
 
@@ -18,15 +18,16 @@ fn encoded_proof() -> String {
 }
 
 fn proof(encoded_proof: String) -> SP1ProofWithPublicValues {
-    SP1ProofWithPublicValues::new(
-        SP1Proof::Groth16(Groth16Bn254Proof {
+    SP1ProofWithPublicValues {
+        proof: SP1Proof::Groth16(Groth16Bn254Proof {
             public_inputs: INPUTS.map(str::to_owned),
             encoded_proof,
             ..Default::default()
         }),
-        SP1PublicValues::new(),
-        "v6.1.0".to_owned(),
-    )
+        public_values: SP1PublicValues::new(),
+        sp1_version: "v6.1.0".to_owned(),
+        tee_proof: None,
+    }
 }
 
 #[test]

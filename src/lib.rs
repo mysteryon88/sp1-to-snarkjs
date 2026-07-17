@@ -1,7 +1,7 @@
 //! Convert SP1 Groth16 proof artifacts to snarkjs-compatible JSON.
 //!
 //! Main path:
-//! `SP1ProofWithPublicValues::load("proof.bin")` -> `proof.json`,
+//! `load_sp1_proof("proof.bin")` -> `proof.json`,
 //! `public.json`, `verification_key.json`.
 
 pub mod error;

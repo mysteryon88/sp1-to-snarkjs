@@ -86,6 +86,7 @@ requires snarkjs to reject a mutated public input. Published outputs are under
 
 - SP1 Groth16
 - BN254 / bn128
+- Arkworks 0.6
 - `sp1-sdk` and `sp1-verifier` 6.3.1
 - serialized `sp1_version = "v6.1.0"`
 - five wrapper public inputs

@@ -8,11 +8,13 @@ use ark_groth16::{prepare_verifying_key, Groth16};
 use ark_snark::SNARK;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::SP1ProofWithPublicValues;
-use sp1_verifier::{load_ark_groth16_verifying_key_from_bytes, load_ark_proof_from_bytes};
 
 use crate::error::{Result, Sp1ToSnarkjsError};
 use crate::snarkjs::{SnarkJsProof, SnarkJsVerificationKey};
-use crate::sp1::{load_sp1_proof, sp1_groth16_proof_bytes, sp1_groth16_public_inputs};
+use crate::sp1::{
+    load_ark_groth16_verifying_key_from_bytes, load_ark_proof_from_bytes, load_sp1_proof,
+    sp1_groth16_proof_bytes, sp1_groth16_public_inputs,
+};
 
 fn fr_from_decimal(value: &str) -> Result<Fr> {
     Fr::from_str(value).map_err(|_| Sp1ToSnarkjsError::InvalidDecimal(value.to_owned()))

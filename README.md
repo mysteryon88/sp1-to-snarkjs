@@ -1,90 +1,106 @@
-# sp1-to-snarkjs
+# SP1 to snarkjs
 
-`sp1-to-snarkjs` converts an existing SP1 Groth16 `proof.bin` into snarkjs-compatible JSON:
+[![dependency status](https://deps.rs/repo/github/mysteryon88/sp1-to-snarkjs/status.svg)](https://deps.rs/repo/github/mysteryon88/sp1-to-snarkjs)
+
+Utilities for converting existing [SP1](https://github.com/succinctlabs/sp1)
+Groth16 `proof.bin` artifacts into JSON compatible with
+[snarkjs](https://github.com/iden3/snarkjs):
 
 - `proof.json`
 - `public.json`
 - `verification_key.json`
 
-This repository does not generate SP1 proofs. Proof generation and native SP1 verification belong in an SP1 examples checkout. Native SP1 verification validates the SP1 artifact through the SP1 SDK; snarkjs verification validates the exported Groth16 wrapper proof against its wrapper verification key and five wrapper public inputs. snarkjs verification is not a replacement for native SP1 verification.
+Supports the SP1 6.3.1 Groth16 wrapper on BN254. The converter verifies every
+proof with Arkworks before writing JSON. It does not generate SP1 proofs.
 
-## Supported proof layout
+## Installation
 
-The converter is built against `sp1-sdk` and `sp1-verifier` `6.3.1`. Those
-crates emit and verify Groth16 artifacts whose serialized circuit metadata is
-exactly `sp1_version = "v6.1.0"`; the converter rejects every other value.
+Install the CLI from GitHub:
 
-The supported wrapper layout has:
+```bash
+cargo install --git https://github.com/mysteryon88/sp1-to-snarkjs
+```
 
-- exactly five public inputs: program verification-key hash, committed public-values digest, exit code, wrapper verification-key root, and proof nonce;
-- exactly 352 encoded proof bytes: 96 bytes of SP1 wrapper metadata followed by a 256-byte Groth16 proof.
+Or add the library to a Rust project:
 
-The wrapper verification key comes from the linked `sp1-verifier` `6.3.1`
-crate. Every conversion is verified with Arkworks before JSON is written.
+```bash
+cargo add --git https://github.com/mysteryon88/sp1-to-snarkjs
+```
 
-## Build and test on Linux
+## Convert for snarkjs
+
+```bash
+sp1-to-snarkjs \
+  --proof proof.bin \
+  --out snarkjs \
+  --snarkjs-verify
+```
+
+The command writes:
+
+```text
+snarkjs/proof.json
+snarkjs/public.json
+snarkjs/verification_key.json
+```
+
+`--snarkjs-verify` runs the equivalent of:
+
+```bash
+snarkjs groth16 verify \
+  snarkjs/verification_key.json \
+  snarkjs/public.json \
+  snarkjs/proof.json
+```
+
+No separate `vk.bin` is required. The wrapper verification key bundled by
+`sp1-verifier` is exported as `verification_key.json`.
+
+## Library usage
+
+```rust
+use sp1_to_snarkjs::{convert_sp1_proof_file, write_artifacts};
+
+fn main() -> sp1_to_snarkjs::Result<()> {
+    let artifacts = convert_sp1_proof_file("proof.bin")?;
+    write_artifacts(&artifacts, "snarkjs")?;
+    Ok(())
+}
+```
+
+## Examples
+
+The [`sp1-examples`](https://github.com/zk-examples/sp1-examples) submodule
+contains arithmetic, Fibonacci, and SHA-256 proofs:
+
+```bash
+git submodule update --init
+./scripts/import-examples.sh
+```
+
+The script converts all three proofs, verifies each export with snarkjs, and
+requires snarkjs to reject a mutated public input. Published outputs are under
+`artifacts/<case>/snarkjs/`.
+
+## Supported format
+
+- SP1 Groth16
+- BN254 / bn128
+- `sp1-sdk` and `sp1-verifier` 6.3.1
+- serialized `sp1_version = "v6.1.0"`
+- five wrapper public inputs
+- 352 encoded proof bytes: 96 bytes of wrapper metadata and a 256-byte
+  Groth16 proof
+
+## Build and test
+
+Run on Linux or WSL:
 
 ```bash
 cargo build --locked
 cargo test --locked
 ```
 
-Install `snarkjs` if you want external verification:
+## License
 
-```bash
-npm install --global snarkjs@0.7.6
-```
-
-## Submodule import workflow
-
-Initialize the examples submodule after cloning this repository:
-
-```bash
-git submodule update --init
-```
-
-The `scripts/import-examples.sh` helper is available only in this repository
-checkout; it is not included in the packaged crate. It reads these proofs
-directly from the submodule:
-
-```text
-sp1-examples/artifacts/arithmetic/proof.bin
-sp1-examples/artifacts/fibonacci/proof.bin
-sp1-examples/artifacts/sha256/proof.bin
-```
-
-Run:
-
-```bash
-./scripts/import-examples.sh
-```
-
-Converted JSON is written to and published from:
-
-```text
-artifacts/<case>/snarkjs/proof.json
-artifacts/<case>/snarkjs/public.json
-artifacts/<case>/snarkjs/verification_key.json
-```
-
-The import script verifies each exported wrapper proof with snarkjs and requires snarkjs to reject a mutated arithmetic public input.
-It does not copy the source `proof.bin` files into this repository. An alternate
-examples checkout can still be supplied as `./scripts/import-examples.sh <path>`.
-
-## Packaged CLI workflow
-
-```bash
-sp1-to-snarkjs \
-  --proof sp1-examples/artifacts/arithmetic/proof.bin \
-  --out artifacts/arithmetic/snarkjs \
-  --snarkjs-verify
-```
-
-Library usage is shown in `examples/library_usage.rs`.
-
-## Publishing
-
-```bash
-cargo package --locked
-cargo publish --dry-run --locked
-```
+MIT OR Apache-2.0

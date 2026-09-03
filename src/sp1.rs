@@ -1,11 +1,12 @@
-use std::path::Path;
+use std::{fs::File, path::Path};
 
 use ark_bn254::{Bn254, Fr, G1Affine, G2Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{BigInteger, PrimeField};
 use ark_groth16::{Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues};
+use bincode::Options;
+use sp1_sdk::{ProofFromNetwork, SP1Proof, SP1ProofWithPublicValues};
 use sp1_verifier::Groth16Bn254Proof;
 
 use crate::error::{Result, Sp1ToSnarkjsError};
@@ -13,6 +14,8 @@ use crate::error::{Result, Sp1ToSnarkjsError};
 const SP1_GROTH16_METADATA_BYTES: usize = 96;
 const GROTH16_PROOF_BYTES: usize = 256;
 const SP1_GROTH16_ENCODED_BYTES: usize = SP1_GROTH16_METADATA_BYTES + GROTH16_PROOF_BYTES;
+const SP1_GROTH16_ENCODED_HEX_BYTES: usize = SP1_GROTH16_ENCODED_BYTES * 2;
+const MAX_SP1_PROOF_FILE_BYTES: u64 = 16 * 1024 * 1024;
 const SUPPORTED_SP1_VERSION: &str = "v6.1.0";
 const GNARK_MASK: u8 = 0b11 << 6;
 const GNARK_POSITIVE: u8 = 0b10 << 6;
@@ -158,8 +161,32 @@ pub(crate) fn load_ark_groth16_verifying_key_from_bytes(
 }
 
 pub fn load_sp1_proof(path: impl AsRef<Path>) -> Result<SP1ProofWithPublicValues> {
-    SP1ProofWithPublicValues::load(path.as_ref())
-        .map_err(|error| Sp1ToSnarkjsError::Sp1(error.to_string()))
+    let path = path.as_ref();
+    let file = File::open(path)?;
+    let file_len = file.metadata()?.len();
+    if file_len > MAX_SP1_PROOF_FILE_BYTES {
+        return Err(Sp1ToSnarkjsError::Sp1(format!(
+            "proof file is {file_len} bytes; maximum is {MAX_SP1_PROOF_FILE_BYTES}"
+        )));
+    }
+
+    let maybe_this = bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .allow_trailing_bytes()
+        .with_limit(MAX_SP1_PROOF_FILE_BYTES)
+        .deserialize_from::<_, SP1ProofWithPublicValues>(file)
+        .map_err(|error| Sp1ToSnarkjsError::Sp1(error.to_string()));
+
+    match maybe_this {
+        Ok(proof) => Ok(proof),
+        Err(error) => bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .allow_trailing_bytes()
+            .with_limit(MAX_SP1_PROOF_FILE_BYTES)
+            .deserialize_from::<_, ProofFromNetwork>(File::open(path)?)
+            .map(Into::into)
+            .map_err(|_| error),
+    }
 }
 
 fn groth16_proof(proof: &SP1ProofWithPublicValues) -> Result<&Groth16Bn254Proof> {
@@ -188,14 +215,15 @@ pub fn sp1_groth16_public_inputs(proof: &SP1ProofWithPublicValues) -> Result<Vec
 
 pub fn sp1_groth16_proof_bytes(proof: &SP1ProofWithPublicValues) -> Result<Vec<u8>> {
     let groth16 = groth16_proof(proof)?;
-    let encoded = hex::decode(&groth16.encoded_proof)?;
 
-    if encoded.len() != SP1_GROTH16_ENCODED_BYTES {
+    if groth16.encoded_proof.len() != SP1_GROTH16_ENCODED_HEX_BYTES {
         return Err(Sp1ToSnarkjsError::InvalidEncodedProofLength {
-            actual: encoded.len(),
-            expected: SP1_GROTH16_ENCODED_BYTES,
+            actual: groth16.encoded_proof.len(),
+            expected: SP1_GROTH16_ENCODED_HEX_BYTES,
         });
     }
+
+    let encoded = hex::decode(&groth16.encoded_proof)?;
 
     for (index, public_input) in groth16.public_inputs[2..5].iter().enumerate() {
         let expected = decimal_to_bytes32(public_input)?;

@@ -93,6 +93,26 @@ requires snarkjs to reject a mutated public input. Published outputs are under
 - 352 encoded proof bytes: 96 bytes of wrapper metadata and a 256-byte
   Groth16 proof
 
+## Security
+
+The exported `verification_key.json` is the generic SP1 Groth16 wrapper
+verification key, not the verification key of the proved program. A successful
+snarkjs verification only proves that this wrapper accepts the supplied public
+signals; the application must check that they describe its intended statement.
+
+For SP1 `v6.1.0`, check all five wrapper public signals against expected
+values:
+
+1. `0`: the intended program's SP1 verification-key hash;
+2. `1`: the expected committed public-values digest under the supported SP1 convention;
+3. `2`: the application's accepted exit code (normally zero);
+4. `3`: the expected SP1 recursion verification-key root for the supported version;
+5. `4`: a nonce allowed exactly once by the application's replay policy.
+
+In particular, bind the expected program verification key, public-values
+digest, exit code, root, and nonce to the application operation before
+accepting a proof.
+
 ## Build and test
 
 Run on Linux or WSL:

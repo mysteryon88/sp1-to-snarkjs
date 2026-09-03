@@ -4685,6 +4685,7 @@ dependencies = [
  "ark-groth16",
  "ark-serialize",
  "ark-snark",
+ "bincode",
  "clap",
  "hex",
  "serde",

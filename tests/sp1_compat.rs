@@ -1,7 +1,12 @@
-use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
+use std::{
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use sp1_sdk::{ProofFromNetwork, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
 use sp1_to_snarkjs::{
     error::Sp1ToSnarkjsError,
-    sp1::{sp1_groth16_proof_bytes, sp1_groth16_public_inputs},
+    sp1::{load_sp1_proof, sp1_groth16_proof_bytes, sp1_groth16_public_inputs},
 };
 use sp1_verifier::Groth16Bn254Proof;
 
@@ -76,8 +81,8 @@ fn rejects_tee_prefixed_proof() {
 }
 
 #[test]
-fn rejects_non_hex_encoded_proof() {
-    let error = sp1_groth16_proof_bytes(&proof("not-hex".to_owned())).unwrap_err();
+fn rejects_non_hex_encoded_proof_at_the_expected_length() {
+    let error = sp1_groth16_proof_bytes(&proof("g".repeat(704))).unwrap_err();
 
     assert!(matches!(error, Sp1ToSnarkjsError::Hex(_)));
 }
@@ -89,10 +94,87 @@ fn rejects_wrong_encoded_proof_length() {
     assert!(matches!(
         error,
         Sp1ToSnarkjsError::InvalidEncodedProofLength {
-            actual: 351,
-            expected: 352
+            actual: 702,
+            expected: 704
         }
     ));
+}
+
+#[test]
+fn loads_legacy_network_proof_with_trailing_data() {
+    let legacy = ProofFromNetwork {
+        proof: proof(encoded_proof()).proof,
+        public_values: SP1PublicValues::new(),
+        sp1_version: "v6.1.0".to_owned(),
+    };
+    let mut bytes = bincode::serialize(&legacy).unwrap();
+    bytes.extend_from_slice(b"trailing data");
+    let path = temporary_proof_path();
+    fs::write(&path, bytes).unwrap();
+
+    let loaded = load_sp1_proof(&path).unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(loaded.tee_proof.is_none());
+    assert_eq!(loaded.sp1_version, "v6.1.0");
+}
+
+#[test]
+fn loads_current_proof_with_trailing_data() {
+    let mut bytes = bincode::serialize(&proof(encoded_proof())).unwrap();
+    bytes.extend_from_slice(b"trailing data");
+    let path = temporary_proof_path();
+    fs::write(&path, bytes).unwrap();
+
+    let loaded = load_sp1_proof(&path).unwrap();
+    fs::remove_file(path).unwrap();
+
+    assert!(loaded.tee_proof.is_none());
+    assert_eq!(loaded.sp1_version, "v6.1.0");
+}
+
+#[test]
+fn rejects_proof_file_larger_than_16_mib() {
+    let mut bytes = bincode::serialize(&proof(encoded_proof())).unwrap();
+    bytes.resize(16 * 1024 * 1024 + 1, 0);
+
+    let path = temporary_proof_path();
+    fs::write(&path, bytes).unwrap();
+
+    let error = load_sp1_proof(&path).unwrap_err();
+    fs::remove_file(path).unwrap();
+
+    assert!(matches!(error, Sp1ToSnarkjsError::Sp1(_)));
+}
+
+#[test]
+fn rejects_declared_string_length_above_limit() {
+    let encoded = encoded_proof();
+    let mut bytes = bincode::serialize(&proof(encoded.clone())).unwrap();
+    let string_offset = bytes
+        .windows(encoded.len())
+        .position(|window| window == encoded.as_bytes())
+        .unwrap();
+    bytes[string_offset - 8..string_offset]
+        .copy_from_slice(&(16u64 * 1024 * 1024 + 1).to_le_bytes());
+    bytes.truncate(string_offset);
+    assert!(bytes.len() < 1024);
+
+    let path = temporary_proof_path();
+    fs::write(&path, bytes).unwrap();
+
+    let error = load_sp1_proof(&path).unwrap_err();
+    fs::remove_file(path).unwrap();
+
+    assert!(matches!(error, Sp1ToSnarkjsError::Sp1(_)));
+}
+
+fn temporary_proof_path() -> std::path::PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    std::env::temp_dir().join(format!("sp1-to-snarkjs-{}-{nanos}.bin", std::process::id()))
 }
 
 #[test]
